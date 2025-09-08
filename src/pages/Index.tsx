@@ -1,12 +1,19 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import URLShortenerForm from "@/components/URLShortenerForm";
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="space-y-8">
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold text-foreground">
+          Professional URL Shortener
+        </h1>
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          Create short, trackable links with custom validity periods and detailed analytics. 
+          Perfect for medical technology and enterprise applications.
+        </p>
       </div>
+      
+      <URLShortenerForm />
     </div>
   );
 };
