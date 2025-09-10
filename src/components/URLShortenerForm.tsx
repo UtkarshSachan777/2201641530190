@@ -1,97 +1,128 @@
-import { useState, useCallback } from "react";
-import { useForm } from "react-hook-form";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { QRCodeComponent } from "@/components/ui/qr-code";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { toast } from "sonner";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Link2, Clock, Hash, Check, AlertCircle, Globe, 
-  QrCode, Copy, ExternalLink, Trash2, Shield,
-  Zap, TrendingUp, Eye
+  Link, 
+  Sparkles, 
+  Target, 
+  Globe, 
+  Smartphone, 
+  Monitor, 
+  Users, 
+  TrendingUp,
+  Zap,
+  Shield,
+  Clock,
+  Eye,
+  Copy,
+  Share2,
+  BarChart3,
+  Wand2,
+  Lock,
+  Calendar,
+  Hash,
+  ExternalLink,
+  Palette,
+  Settings,
+  Brain,
+  Rocket,
+  Star,
+  Trash2,
+  QrCode
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-interface URLFormData {
-  longUrl: string;
-  validityPeriod: number;
-  customShortcode?: string;
-  password?: string;
-  description?: string;
-}
-
-interface ShortenedURL {
+interface URLData {
   id: string;
-  longUrl: string;
-  shortUrl: string;
-  validityPeriod: number;
-  customShortcode?: string;
-  password?: string;
+  original_url: string;
+  short_code: string;
+  title?: string;
   description?: string;
-  createdAt: Date;
-  expiresAt: Date;
   clicks: number;
-  isActive: boolean;
-  qrCode?: string;
+  created_at: string;
+  qr_code?: string;
+  ai_suggestions?: any;
+  performance_score?: number;
+  predicted_ctr?: number;
 }
 
-const URLShortenerForm = () => {
-  const [shortenedUrls, setShortenedUrls] = useState<ShortenedURL[]>([]);
+export const URLShortenerForm = () => {
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [customCode, setCustomCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [expirationDate, setExpirationDate] = useState("");
+  const [maxClicks, setMaxClicks] = useState("");
+  
+  // Advanced features
+  const [enablePassword, setEnablePassword] = useState(false);
+  const [enableExpiration, setEnableExpiration] = useState(false);
+  const [enableClickLimit, setEnableClickLimit] = useState(false);
+  const [enableGeoTargeting, setEnableGeoTargeting] = useState(false);
+  const [enableDeviceTargeting, setEnableDeviceTargeting] = useState(false);
+  const [enableRetargeting, setEnableRetargeting] = useState(false);
+  const [enableAIOptimization, setEnableAIOptimization] = useState(true);
+
+  // UTM Parameters
+  const [utmSource, setUtmSource] = useState("");
+  const [utmMedium, setUtmMedium] = useState("");
+  const [utmCampaign, setUtmCampaign] = useState("");
+  const [utmTerm, setUtmTerm] = useState("");
+  const [utmContent, setUtmContent] = useState("");
+
+  // Retargeting pixels
+  const [facebookPixel, setFacebookPixel] = useState("");
+  const [googlePixel, setGooglePixel] = useState("");
+  const [twitterPixel, setTwitterPixel] = useState("");
+
+  // Geo targeting
+  const [targetCountries, setTargetCountries] = useState<string[]>([]);
+  const [targetDevices, setTargetDevices] = useState<string[]>([]);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedUrl, setSelectedUrl] = useState<ShortenedURL | null>(null);
-  const [showQRCode, setShowQRCode] = useState<string | null>(null);
+  const [shortenedData, setShortenedData] = useState<URLData | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [performanceScore, setPerformanceScore] = useState(0);
+  const [usageProgress, setUsageProgress] = useState(65);
+  
+  const { toast } = useToast();
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<URLFormData>({
-    defaultValues: {
-      validityPeriod: 60
-    }
-  });
-
-  const watchedUrl = watch("longUrl");
-
-  const validateUrl = (url: string) => {
-    try {
-      new URL(url);
-      const domain = new URL(url).hostname;
-      if (domain.includes('localhost') || domain.includes('127.0.0.1')) {
-        return "Local URLs are not allowed for security reasons";
-      }
-      return true;
-    } catch {
-      return "Please enter a valid URL (e.g., https://example.com)";
-    }
+  // AI suggestions for URL optimization
+  const generateAISuggestions = (originalUrl: string) => {
+    const suggestions = [
+      "Add UTM parameters to track campaign performance",
+      "Enable retargeting pixels for better conversion",
+      "Set geo-targeting for location-specific content",
+      "Consider adding a custom landing page",
+      "Enable A/B testing for different audiences"
+    ];
+    setAiSuggestions(suggestions);
+    setPerformanceScore(Math.floor(Math.random() * 30) + 70);
   };
 
-  const generateShortCode = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 7; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
-
-  const calculateTimeRemaining = (expiresAt: Date) => {
-    const now = new Date();
-    const remaining = expiresAt.getTime() - now.getTime();
-    
-    if (remaining <= 0) return "Expired";
-    
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-
-  const onSubmit = async (data: URLFormData) => {
-    if (shortenedUrls.length >= 10) {
-      toast.error("Maximum 10 URLs can be shortened at once", {
-        description: "Clear some URLs to continue"
+  const shortenURL = async () => {
+    if (!url) {
+      toast({
+        title: "URL Required",
+        description: "Please enter a URL to shorten",
+        variant: "destructive",
       });
       return;
     }
@@ -99,415 +130,201 @@ const URLShortenerForm = () => {
     setIsLoading(true);
 
     try {
-      // Simulate advanced API processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const shortCode = data.customShortcode || generateShortCode();
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + data.validityPeriod * 60 * 1000);
-
-      // Check for duplicate custom shortcode
-      if (data.customShortcode && shortenedUrls.some(url => url.customShortcode === data.customShortcode)) {
-        toast.error("Custom shortcode already exists", {
-          description: "Please choose a different shortcode"
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      const newShortenedUrl: ShortenedURL = {
-        id: Math.random().toString(36).substring(2),
-        longUrl: data.longUrl,
-        shortUrl: `https://short.ly/${shortCode}`,
-        validityPeriod: data.validityPeriod,
-        customShortcode: data.customShortcode,
-        password: data.password,
-        description: data.description,
-        createdAt: now,
-        expiresAt,
-        clicks: Math.floor(Math.random() * 100),
-        isActive: true
+      // Mock implementation - would integrate with Supabase edge functions
+      const shortCode = customCode || generateShortCode();
+      const newUrlData: URLData = {
+        id: crypto.randomUUID(),
+        original_url: url,
+        short_code: shortCode,
+        title: title || extractTitleFromUrl(url),
+        description,
+        clicks: 0,
+        created_at: new Date().toISOString(),
+        ai_suggestions: enableAIOptimization ? aiSuggestions : null,
+        performance_score: enableAIOptimization ? performanceScore : null,
+        predicted_ctr: enableAIOptimization ? Math.random() * 0.05 + 0.02 : null,
       };
 
-      setShortenedUrls(prev => [newShortenedUrl, ...prev]);
-      toast.success("URL shortened successfully!", {
-        description: "Your professional short link is ready to use"
+      setShortenedData(newUrlData);
+      generateAISuggestions(url);
+
+      toast({
+        title: "🎉 Link Shortened Successfully!",
+        description: "Your smart link is ready with AI-powered insights",
       });
-      reset();
+
+      // Reset form
+      setUrl("");
+      setTitle("");
+      setDescription("");
+      setCustomCode("");
     } catch (error) {
-      toast.error("Failed to shorten URL", {
-        description: "Please check your connection and try again"
+      toast({
+        title: "Error",
+        description: "Failed to shorten URL. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const copyToClipboard = useCallback(async (text: string, type: string = "URL") => {
+  const generateShortCode = () => {
+    return Math.random().toString(36).substring(2, 8);
+  };
+
+  const extractTitleFromUrl = (url: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${type} copied to clipboard!`, {
-        icon: <Copy className="w-4 h-4" />
-      });
-    } catch (error) {
-      toast.error("Failed to copy to clipboard");
+      const domain = new URL(url).hostname.replace('www.', '');
+      return domain.charAt(0).toUpperCase() + domain.slice(1);
+    } catch {
+      return "Shortened Link";
     }
-  }, []);
-
-  const deleteUrl = (id: string) => {
-    setShortenedUrls(prev => prev.filter(url => url.id !== id));
-    toast.success("URL deleted successfully");
   };
 
-  const clearAll = () => {
-    setShortenedUrls([]);
-    toast.success("All URLs cleared");
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: "Link copied to clipboard",
+    });
   };
 
-  const urlProgress = (shortenedUrls.length / 10) * 100;
+  const shareLink = async (text: string) => {
+    if (navigator.share) {
+      await navigator.share({
+        title: shortenedData?.title,
+        text: shortenedData?.description,
+        url: text,
+      });
+    }
+  };
 
   return (
     <div className="space-y-8">
-      {/* Main Form Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Card className="shadow-elegant hover-lift glass-card border-2">
-          <CardHeader className="bg-gradient-hero text-white rounded-t-lg relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 backdrop-blur-sm"></div>
-            <div className="relative z-10">
-              <CardTitle className="flex items-center space-x-3 text-2xl">
-                <div className="p-2 bg-white/10 rounded-xl">
-                  <Link2 className="w-6 h-6" />
-                </div>
-                <span>Professional URL Shortener</span>
-              </CardTitle>
-              <CardDescription className="text-white/80 text-lg">
-                Create secure, trackable short links with advanced features
-              </CardDescription>
+      {/* Main URL Shortening Form */}
+      <Card className="glass-panel border-primary/20 overflow-hidden">
+        <CardHeader className="bg-gradient-primary/10 border-b border-primary/20">
+          <CardTitle className="flex items-center gap-3 text-2xl">
+            <div className="p-2 bg-primary/20 rounded-xl">
+              <Rocket className="h-6 w-6 text-primary" />
             </div>
-          </CardHeader>
-          
-          <CardContent className="p-8">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-              {/* URL Input */}
-              <div className="space-y-3">
-                <Label htmlFor="longUrl" className="text-base font-semibold flex items-center space-x-2">
-                  <Globe className="w-4 h-4 text-primary" />
-                  <span>Original URL</span>
-                  <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="longUrl"
-                    placeholder="https://example.com/your-very-long-url-goes-here"
-                    {...register("longUrl", {
-                      required: "URL is required",
-                      validate: validateUrl
-                    })}
-                    className="h-14 text-lg pl-12 pr-4 bg-gradient-card border-2 transition-all duration-300 focus:shadow-glow focus:border-primary"
-                  />
-                  <Globe className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                </div>
-                <AnimatePresence>
-                  {errors.longUrl && (
-                    <motion.p 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="text-sm text-destructive flex items-center space-x-2"
-                    >
-                      <AlertCircle className="w-4 h-4" />
-                      <span>{errors.longUrl.message}</span>
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-                
-                {/* URL Preview */}
-                {watchedUrl && !errors.longUrl && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="p-4 bg-success/10 border border-success/20 rounded-lg"
-                  >
-                    <p className="text-sm text-success-foreground flex items-center space-x-2">
-                      <Check className="w-4 h-4" />
-                      <span>Valid URL detected</span>
-                    </p>
-                  </motion.div>
-                )}
-              </div>
+            AI-Powered URL Shortener
+            <Badge variant="secondary" className="bg-accent/20 text-accent-foreground">
+              <Brain className="h-3 w-3 mr-1" />
+              Smart
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-8 space-y-6">
+          {/* URL Input */}
+          <div className="space-y-3">
+            <Label htmlFor="url" className="text-base font-medium flex items-center gap-2">
+              <Link className="h-4 w-4" />
+              Enter your long URL
+            </Label>
+            <div className="relative">
+              <Input
+                id="url"
+                placeholder="https://example.com/very-long-url-that-needs-shortening"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="pr-12 h-12 text-lg bg-background/50 backdrop-blur-sm border-primary/30 focus:border-primary transition-all duration-300"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                onClick={() => setUrl("")}
+              >
+                ×
+              </Button>
+            </div>
+          </div>
 
-              {/* Advanced Options Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Validity Period */}
-                <div className="space-y-3">
-                  <Label htmlFor="validityPeriod" className="text-sm font-semibold flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-warning" />
-                    <span>Validity (minutes)</span>
-                  </Label>
-                  <Input
-                    id="validityPeriod"
-                    type="number"
-                    min="5"
-                    max="525600"
-                    {...register("validityPeriod", {
-                      required: "Validity period is required",
-                      min: { value: 5, message: "Minimum 5 minutes" },
-                      max: { value: 525600, message: "Maximum 1 year" }
-                    })}
-                    className="h-12 bg-gradient-card border-2 transition-all duration-300 focus:border-warning"
-                  />
-                  {errors.validityPeriod && (
-                    <p className="text-sm text-destructive">{errors.validityPeriod.message}</p>
-                  )}
-                </div>
+          {/* Action Button */}
+          <Button
+            onClick={shortenURL}
+            disabled={isLoading || !url}
+            className="w-full h-14 text-lg font-semibold bg-gradient-primary hover:scale-105 transition-all duration-300 group"
+          >
+            {isLoading ? (
+              <>
+                <LoadingSpinner className="mr-3" />
+                Creating Smart Link...
+              </>
+            ) : (
+              <>
+                <Zap className="mr-3 h-5 w-5 group-hover:animate-pulse" />
+                Create Smart Link
+                <Sparkles className="ml-3 h-5 w-5 group-hover:animate-pulse" />
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
-                {/* Custom Shortcode */}
-                <div className="space-y-3">
-                  <Label htmlFor="customShortcode" className="text-sm font-semibold flex items-center space-x-2">
-                    <Hash className="w-4 h-4 text-secondary" />
-                    <span>Custom Code</span>
-                    <Badge variant="secondary" className="text-xs">Optional</Badge>
-                  </Label>
-                  <Input
-                    id="customShortcode"
-                    placeholder="my-awesome-link"
-                    {...register("customShortcode", {
-                      pattern: {
-                        value: /^[a-zA-Z0-9-_]+$/,
-                        message: "Only letters, numbers, hyphens and underscores"
-                      },
-                      minLength: { value: 3, message: "Minimum 3 characters" },
-                      maxLength: { value: 20, message: "Maximum 20 characters" }
-                    })}
-                    className="h-12 bg-gradient-card border-2 transition-all duration-300 focus:border-secondary"
-                  />
-                  {errors.customShortcode && (
-                    <p className="text-sm text-destructive">{errors.customShortcode.message}</p>
-                  )}
-                </div>
-
-                {/* Password Protection */}
-                <div className="space-y-3">
-                  <Label htmlFor="password" className="text-sm font-semibold flex items-center space-x-2">
-                    <Shield className="w-4 h-4 text-info" />
-                    <span>Password</span>
-                    <Badge variant="outline" className="text-xs">Pro</Badge>
-                  </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Optional password"
-                    {...register("password", {
-                      minLength: { value: 4, message: "Minimum 4 characters" }
-                    })}
-                    className="h-12 bg-gradient-card border-2 transition-all duration-300 focus:border-info"
-                  />
-                  {errors.password && (
-                    <p className="text-sm text-destructive">{errors.password.message}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-3">
-                <Label htmlFor="description" className="text-sm font-semibold">
-                  Description (Optional)
-                </Label>
-                <Input
-                  id="description"
-                  placeholder="Brief description of your link..."
-                  {...register("description", {
-                    maxLength: { value: 100, message: "Maximum 100 characters" }
-                  })}
-                  className="h-12 bg-gradient-card border-2"
-                />
-              </div>
-
-              {/* Submit Section */}
-              <div className="flex items-center justify-between pt-6 border-t border-border">
-                <div className="flex items-center space-x-4">
-                  <ProgressRing progress={urlProgress} size={50} />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {shortenedUrls.length}/10 URLs shortened
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {10 - shortenedUrls.length} remaining
-                    </p>
-                  </div>
-                </div>
-                
-                <Button
-                  type="submit"
-                  disabled={isLoading || shortenedUrls.length >= 10}
-                  className="btn-hero h-14 px-8 text-lg font-semibold min-w-[200px]"
-                >
-                  {isLoading ? (
-                    <div className="flex items-center space-x-2">
-                      <LoadingSpinner size="sm" />
-                      <span>Processing...</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <Zap className="w-5 h-5" />
-                      <span>Shorten URL</span>
-                    </div>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Results Section */}
+      {/* Results Card */}
       <AnimatePresence>
-        {shortenedUrls.length > 0 && (
+        {shortenedData && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            className="space-y-6"
           >
-            <Card className="shadow-elegant glass-card">
-              <CardHeader className="flex flex-row items-center justify-between pb-4">
-                <div>
-                  <CardTitle className="text-2xl flex items-center space-x-2">
-                    <TrendingUp className="w-6 h-6 text-primary" />
-                    <span>Your Shortened URLs</span>
-                  </CardTitle>
-                  <CardDescription className="text-lg">
-                    Professional short links with advanced analytics
-                  </CardDescription>
-                </div>
-                <Button 
-                  variant="outline" 
-                  onClick={clearAll} 
-                  className="hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Clear All
-                </Button>
+            <Card className="glass-panel border-primary/20 overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-green-500/10 to-primary/10 border-b border-primary/20">
+                <CardTitle className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500/20 rounded-xl">
+                    <Star className="h-5 w-5 text-green-600" />
+                  </div>
+                  Your Smart Link is Ready!
+                  <Badge variant="secondary" className="bg-green-500/20 text-green-700">
+                    AI Enhanced
+                  </Badge>
+                </CardTitle>
               </CardHeader>
-              
-              <CardContent className="p-0">
-                <div className="space-y-1">
-                  {shortenedUrls.map((url, index) => (
-                    <motion.div
-                      key={url.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                      className="p-6 hover:bg-accent/50 border-b border-border/50 last:border-0 group transition-all duration-300"
-                    >
-                      <div className="space-y-4">
-                        {/* URL Info Header */}
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <p className="text-sm text-muted-foreground truncate max-w-md">
-                                {url.longUrl}
-                              </p>
-                              {url.password && (
-                                <Badge variant="outline" className="text-xs">
-                                  <Shield className="w-3 h-3 mr-1" />
-                                  Protected
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <div className="flex items-center space-x-3">
-                              <p className="text-xl font-mono text-primary font-bold hover:text-primary-glow transition-colors">
-                                {url.shortUrl}
-                              </p>
-                              <div className="flex items-center space-x-1">
-                                <Eye className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-sm font-medium">{url.clicks}</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Action Buttons */}
-                          <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => copyToClipboard(url.shortUrl)}
-                              className="h-8"
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowQRCode(showQRCode === url.id ? null : url.id)}
-                              className="h-8"
-                            >
-                              <QrCode className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(url.longUrl, '_blank')}
-                              className="h-8"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => deleteUrl(url.id)}
-                              className="h-8 hover:bg-destructive hover:text-destructive-foreground"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        
-                        {/* URL Metadata */}
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center space-x-1">
-                            <Clock className="w-4 h-4" />
-                            <span>Expires: {calculateTimeRemaining(url.expiresAt)}</span>
-                          </span>
-                          <span>Created: {url.createdAt.toLocaleDateString()}</span>
-                          {url.customShortcode && (
-                            <Badge variant="secondary" className="text-xs">
-                              Custom
-                            </Badge>
-                          )}
-                          {url.description && (
-                            <span className="italic">"{url.description}"</span>
-                          )}
-                        </div>
-
-                        {/* QR Code Expandable */}
-                        <AnimatePresence>
-                          {showQRCode === url.id && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.3 }}
-                              className="border-t border-border/50 pt-4"
-                            >
-                              <div className="flex justify-center">
-                                <QRCodeComponent 
-                                  value={url.shortUrl} 
-                                  size={150}
-                                  showActions={true}
-                                />
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+              <CardContent className="p-6 space-y-6">
+                {/* Shortened URL Display */}
+                <div className="space-y-3">
+                  <Label>Shortened URL</Label>
+                  <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-xl border">
+                    <div className="flex-1">
+                      <div className="font-mono text-lg text-primary">
+                        https://short.ly/{shortenedData.short_code}
                       </div>
-                    </motion.div>
-                  ))}
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {shortenedData.title}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(`https://short.ly/${shortenedData.short_code}`)}
+                        className="h-9"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => shareLink(`https://short.ly/${shortenedData.short_code}`)}
+                        className="h-9"
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR Code */}
+                <div className="flex justify-center">
+                  <QRCodeComponent
+                    value={`https://short.ly/${shortenedData.short_code}`}
+                    size={200}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -517,5 +334,3 @@ const URLShortenerForm = () => {
     </div>
   );
 };
-
-export default URLShortenerForm;
